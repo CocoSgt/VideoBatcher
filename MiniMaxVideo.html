@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiniMax 视频批量生成</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="icon" href="https://platform.minimaxi.com/favicon.ico">
+    <style>
+        body {
+            background-color: #f8f8f8; /* 浅灰背景色 */
+            background-image: linear-gradient(90deg, #ffffff 25%, #f8f8f8 25%, #f8f8f8 50%, #ffffff 50%, #ffffff 75%, #f8f8f8 75%, #f8f8f8 100%);
+            background-size: 56px 56px; /* 背景网格的尺寸 */
+        }
+
+        .title {
+            font-size: 2.5rem;
+            color: #ff4081; /* MiniMax品牌主色调 */
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-container {
+            background-color: #ffffff; /* 白色背景 */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* 阴影效果 */
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .label {
+            font-weight: bold;
+            color: #333333; /* 深灰色文本 */
+            margin-bottom: 0.5rem;
+        }
+
+        .input {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            border-radius: 0.25rem;
+            border: 1px solid #ddd; /* 边框 */
+            focus:outline-none;
+            focus:ring-2;
+            focus:ring-pink-400; /* 聚焦时的颜色 */
+        }
+
+        .button {
+            width: 100%;
+            background-color: #ff4081; /* 按钮的主色 */
+            color: white;
+            font-weight: bold;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        .button:disabled {
+            background-color: #ffb0c8; /* 按钮禁用时的颜色 */
+            cursor: not-allowed;
+        }
+
+        .task-card {
+            background-color: white;
+            border-left: 4px solid #ff4081; /* 任务卡片边框色 */
+            padding: 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* 轻微阴影 */
+            margin-bottom: 1rem;
+        }
+
+        .task-card p {
+            margin-bottom: 0.5rem;
+            color: #555; /* 浅灰色文字 */
+        }
+
+        .logo {
+            display: block;
+            margin: 0 auto 1.5rem; /* 居中显示 */
+            width: 200px; /* 控制Logo大小 */
+        }
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-2xl mx-auto">
+        <!-- 加入MiniMax的Logo -->
+        <img src="https://filecdn.minimax.chat/public/Group.png" alt="MiniMax Logo" class="logo">
+        
+        <h1 class="title">MiniMax 视频批量生成</h1>
+        <div class="form-container">
+            <label class="label" for="apikey">MiniMax API Key:</label>
+            <div class="relative">
+                <input type="password" id="apikey" placeholder="可在 https://platform.minimaxi.com/ 获取" class="input" oninput="checkInputs()" onfocus="toggleApiKeyVisibility(false)" onblur="toggleApiKeyVisibility(true)">
+            </div>
+            
+            <label class="label" for="prompt">Prompt:</label>
+            <input type="text" id="prompt" placeholder="输入视频描述" class="input" oninput="checkInputs()">
+            
+            <label class="label" for="count">次数 (最多20，但须知 API 有每分钟并发上限):</label>
+            <input type="number" id="count" value="1" min="1" max="20" placeholder="输入请求次数" class="input" oninput="checkCount(); checkInputs();">
+            
+            <button id="generateButton" onclick="startGenerating()" disabled class="button">生成视频</button>
+        </div>
+        
+        <div id="task-container" class="space-y-4"></div>
+    </div>
+
+    <script>
+        let tasks = [];
+        const taskContainer = document.getElementById('task-container');
+        const generateButton = document.getElementById('generateButton');
+        const apiKeyInput = document.getElementById('apikey');
+        let isApiKeyHidden = true;
+    
+        function checkInputs() {
+            const apiKey = apiKeyInput.value.trim();
+            const prompt = document.getElementById('prompt').value.trim();
+            const count = parseInt(document.getElementById('count').value);
+            if (apiKey && prompt && count > 0 && count <= 20) {
+                generateButton.disabled = false;
+                generateButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                generateButton.disabled = true;
+                generateButton.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        }
+    
+        function checkCount() {
+            const countInput = document.getElementById('count');
+            if (parseInt(countInput.value) > 20) {
+                countInput.value = 20;
+            }
+        }
+    
+        function toggleApiKeyVisibility(hide) {
+            if (hide) {
+                apiKeyInput.type = 'password';
+            } else {
+                apiKeyInput.type = 'text';
+            }
+        }
+    
+        function startGenerating() {
+            const apiKey = apiKeyInput.value;
+            const prompt = document.getElementById('prompt').value;
+            const count = parseInt(document.getElementById('count').value);
+    
+            if (!apiKey || !prompt || isNaN(count) || count <= 0 || count > 20) {
+                alert('请填写所有输入内容');
+                return;
+            }
+    
+            // 按钮暂时禁用并显示「任务规划中...」
+            generateButton.textContent = '任务规划中...';
+            generateButton.disabled = true;
+            generateButton.classList.add('opacity-50', 'cursor-not-allowed');
+    
+            let tasksCreated = 0; // 追踪已生成的任务数量
+    
+            for (let i = 0; i < count; i++) {
+                createVideoTask(apiKey, prompt).then(() => {
+                    tasksCreated++;
+                    if (tasksCreated === count) {
+                        // 所有任务卡片都已生成，恢复按钮状态
+                        generateButton.textContent = '生成视频';
+                        generateButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                        generateButton.disabled = false;
+                    }
+                });
+            }
+        }
+    
+        function createVideoTask(apiKey, prompt) {
+            const url = 'https://api.minimax.chat/v1/video_generation';
+            const data = {
+                model: 'video-01',
+                prompt: prompt
+            };
+
+            return fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(responseData => {
+                // 检查API响应中的状态码
+                if (responseData.base_resp && responseData.base_resp.status_code !== 0) {
+                    console.warn(`Request failed with status code: ${responseData.base_resp.status_code}, message: ${responseData.base_resp.status_msg}`);
+                    alert(`请求失败，原因：${responseData.base_resp.status_msg}`);
+                    return;  // 返回，不生成任务卡片
+                }
+
+                // 确保响应中包含task_id
+                if (responseData.task_id) {
+                    const taskId = responseData.task_id;
+                    console.log(`Task created successfully with ID: ${taskId}`);
+
+                    const taskElement = document.createElement('div');
+                    taskElement.className = 'bg-white shadow-md rounded p-4 flex flex-col items-start justify-between border-l-4 border-yellow-500';
+                    taskElement.innerHTML = `
+                        <div class="flex flex-col">
+                            <p class="text-sm text-gray-300">任务ID: ${taskId}</p>
+                            <p class="text-sm text-gray-300" id="status-${taskId}">状态: 生成中...</p>
+                            <p class="text-sm text-gray-600" style="line-height: 2em;">Prompt: ${prompt}</p>
+                        </div>
+                        <div id="result-${taskId}" class="flex flex-col items-start space-x-2 mt-2 w-full overflow-hidden hidden">
+                            <video id="video-${taskId}" controls class="w-full max-w-full rounded-lg hidden"></video>
+                        </div>
+                    `;
+                    taskContainer.prepend(taskElement);  // 新任务放在顶部
+
+                    tasks.push({ id: taskId, element: taskElement, status: 'PROCESSING' });
+                    pollTaskStatus(apiKey, taskId, taskElement);
+                } else {
+                    console.error('Error: No task_id found in response', responseData);
+                    alert('任务创建失败，请检查API响应或参数。');
+                }
+            })
+            .catch(error => {
+                console.error('Error during task creation:', error);
+                alert('任务创建过程中出现错误，请稍后再试。');
+            });
+        }
+
+
+
+        function pollTaskStatus(apiKey, taskId, taskElement) {
+            const url = `https://api.minimax.chat/v1/query/video_generation?task_id=${taskId}`;
+
+            const intervalId = setInterval(() => {
+                fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(responseData => {
+                    const statusElement = document.getElementById(`status-${taskId}`);
+                    const resultElement = document.getElementById(`result-${taskId}`);
+                    const videoElement = document.getElementById(`video-${taskId}`);
+
+                    console.log(`Checking status for Task ID: ${taskId}, Status: ${responseData.status}`);
+
+                    if (responseData.status === 'Success') {
+                        clearInterval(intervalId);
+                        statusElement.textContent = '状态: 生成成功！';
+                        taskElement.classList.remove('border-yellow-500');
+                        taskElement.classList.add('border-green-500');
+
+                        // 获取视频下载链接
+                        fetchVideoDownloadUrl(apiKey, responseData.file_id, videoElement, resultElement);
+                    } else if (responseData.status === 'Failed') {
+                        clearInterval(intervalId);
+                        statusElement.textContent = '状态: 生成失败！';
+                        taskElement.classList.remove('border-yellow-500');
+                        taskElement.classList.add('border-red-500');
+                    } else {
+                        statusElement.textContent = `状态: ${responseData.status}...`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error during status polling:', error);
+                    clearInterval(intervalId);
+                    taskElement.classList.remove('border-yellow-500');
+                    taskElement.classList.add('border-red-500');
+                    statusElement.textContent = '状态: 请求失败！';
+                });
+            }, 5000); // 每5秒查询一次
+        }
+
+        // 新的函数来获取视频下载链接
+        function fetchVideoDownloadUrl(apiKey, fileId, videoElement, resultElement) {
+            const url = `https://api.minimax.chat/v1/files/retrieve?file_id=${fileId}`;
+
+            fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(responseData => {
+                if (responseData.file && responseData.file.download_url) {
+                    const downloadUrl = responseData.file.download_url;
+                    console.log(`Video download URL: ${downloadUrl}`);
+
+                    // 设置视频的src为下载链接
+                    videoElement.src = downloadUrl;
+                    videoElement.classList.remove('hidden');
+                    resultElement.classList.remove('hidden'); // 显示视频
+                } else {
+                    console.error('Error: No download URL found in response', responseData);
+                }
+            })
+            .catch(error => console.error('Error fetching video download URL:', error));
+        }
+
+
+    </script>
+    
+</body>
+</html>
